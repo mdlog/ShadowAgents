@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { splitAmounts } from "./split";
+import { QUANTUM, splitAmounts } from "./split";
 
 // Deterministic RNG so a failure is reproducible.
 function seeded(seed: number) {
@@ -29,6 +29,16 @@ describe("splitAmounts", () => {
   it("avoids round amounts, which are the strongest fingerprint", () => {
     const parts = splitAmounts(30n * ONE, 3, seeded(11));
     for (const p of parts) expect(p % ONE).not.toBe(0n);
+  });
+
+  it("lands every part on a displayable six-decimal value", () => {
+    // Parts that are not whole quanta would render truncated and visibly fail to
+    // add up to the stated total.
+    for (let n = 2; n <= 6; n++) {
+      const parts = splitAmounts(30n * ONE, n, seeded(n * 3));
+      for (const p of parts) expect(p % QUANTUM).toBe(0n);
+      expect(parts.reduce((a, b) => a + b, 0n)).toBe(30n * ONE);
+    }
   });
 
   it("rejects a split that cannot give everyone a positive amount", () => {

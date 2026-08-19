@@ -9,6 +9,7 @@ import { useStoreWallet } from "../../Wallet/walletContext";
 import { useFrontendProvider } from "../provider/providerContext";
 import { StrkCoin } from "../../TokenIcons";
 import SelectWallet from "./SelectWallet";
+import PayrollPanel from "../Payroll/PayrollPanel";
 
 // DEMO: all actions use one token (STRK). Swap constants.addrSTRK for your token,
 // or make the token a user selection.
@@ -132,13 +133,14 @@ function errorResult(msg: string): ActionResult {
 }
 
 // Tabs - one STRK20 action each (Umbra-style single-action interface).
-type TabKey = "shield" | "send" | "unshield" | "echo" | "balances";
+type TabKey = "shield" | "send" | "unshield" | "echo" | "balances" | "payroll";
 const TABS: { key: TabKey; label: string }[] = [
   { key: "shield", label: "Shield" },
   { key: "send", label: "Send" },
   { key: "unshield", label: "Unshield" },
   { key: "echo", label: "Echo" },
   { key: "balances", label: "Balances" },
+  { key: "payroll", label: "Payroll" },
 ];
 
 export default function WalletAccountV6Tag() {
@@ -485,7 +487,7 @@ export default function WalletAccountV6Tag() {
   // Per-tab content: label, the fixed amount + token, a one-line hint, the CTA
   // label, its handler, and the structured result.
   const CONFIG: Record<
-    TabKey,
+    Exclude<TabKey, "payroll">,
     { label: string; value: string; token: string; hint: string; cta: string; onRun: () => void; result: ActionResult | null; disabled: boolean }
   > = {
     shield: { label: "You're shielding", value: "10", token: "STRK", hint: "Deposit into the privacy pool", cta: "Shield", onRun: handleShield, result: resultShield, disabled: !isStrk20Network },
@@ -494,10 +496,11 @@ export default function WalletAccountV6Tag() {
     echo: { label: "Echo invoke round-trip", value: "5", token: "STRK", hint: "Withdraw → helper → refill open note", cta: "Run echo", onRun: handleComplex, result: resultComplex, disabled: !isStrk20Network || !hasEchoHelper },
     balances: { label: "Shielded balances", value: "All", token: "tokens", hint: "Read your private pool balances", cta: "Query balances", onRun: handleBalances, result: resultBalances, disabled: !isStrk20Network },
   };
-  const active = CONFIG[tab];
+  // Payroll is a form, not a fixed-amount action, so it renders its own panel.
+  const active = tab === "payroll" ? null : CONFIG[tab];
 
   return (
-    <div className={styles.panel}>
+    <div className={`${styles.panel} ${tab === "payroll" ? styles.panelWide : ""}`}>
       {/* Action tabs */}
       <div className={styles.tabs}>
         {TABS.map((t) => (
@@ -511,20 +514,24 @@ export default function WalletAccountV6Tag() {
         ))}
       </div>
 
+      {tab === "payroll" ? (
+        <PayrollPanel poolFee={null} shieldedBalance={null} />
+      ) : (
+      <>
       {/* Active-action input block */}
       <div className={styles.inputBlock}>
-        <div className={styles.inputLabel}>{active.label}</div>
+        <div className={styles.inputLabel}>{active!.label}</div>
         <div className={styles.inputMain}>
-          <div className={styles.bigValue}>{active.value}</div>
+          <div className={styles.bigValue}>{active!.value}</div>
           <span className={styles.tokenPill}>
             <span className={styles.tokenDot}>
               <StrkCoin size={22} />
             </span>
-            {active.token}
+            {active!.token}
           </span>
         </div>
         <div className={styles.subLine}>
-          <span>{active.hint}</span>
+          <span>{active!.hint}</span>
           <span className={styles.subMono}>{shortWallet}</span>
         </div>
       </div>
@@ -564,8 +571,8 @@ export default function WalletAccountV6Tag() {
 
       {/* Primary CTA - connect prompt until a wallet is connected. */}
       {isConnected ? (
-        <button className={styles.btnCta} disabled={active.disabled} onClick={active.onRun}>
-          {active.cta}
+        <button className={styles.btnCta} disabled={active!.disabled} onClick={active!.onRun}>
+          {active!.cta}
         </button>
       ) : (
         <SelectWallet variant="ctaBig" />
@@ -593,7 +600,9 @@ export default function WalletAccountV6Tag() {
       )}
 
       {/* Inline result */}
-      {active.result ? <ResultCard r={active.result} /> : null}
+      {active!.result ? <ResultCard r={active!.result} /> : null}
+      </>
+      )}
     </div>
   );
 }

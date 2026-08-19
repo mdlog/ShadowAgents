@@ -361,6 +361,7 @@
 
 /* --- Tabbed action interface (Umbra-style) ------------------------------ */
 .panel { width: min(520px, calc(100vw - 32px)); margin: 0 auto; }
+.panelWide { width: min(680px, calc(100vw - 32px)); }
 
 .tabs {
   display: flex;
@@ -464,4 +465,65 @@
 
 @media (prefers-reduced-motion: reduce) {
   .btn, .connectPill, .btnCta, .tab { transition: none; }
+}
+
+/* ─── ShadowAgents: private payroll ─────────────────────────────────────── */
+.payroll { display: flex; flex-direction: column; gap: 12px; }
+
+.field { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+.field > span { font-size: 12.5px; color: var(--muted); font-weight: 500; }
+
+.input {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: var(--ink);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+}
+.input:focus { border-color: var(--accent, #7b8cff); }
+.range { accent-color: var(--accent, #7b8cff); }
+
+.planWrap {
+  background: var(--inset);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 16px 18px;
+}
+.planHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.planTotal { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.planTable { display: flex; flex-direction: column; gap: 2px; }
+.planRow {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 0.7fr 1.1fr;
+  gap: 8px;
+  font-size: 13px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.planRowHead { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+.planNum { font-variant-numeric: tabular-nums; }
+.planMono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); font-size: 12px; }
+
+.disclose { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
+.discloseCol ul { margin: 6px 0 0; padding-left: 16px; }
+.discloseCol li { font-size: 12.5px; line-height: 1.5; color: var(--muted); margin-bottom: 3px; }
+.discloseHeadPublic { font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--danger); }
+.discloseHeadHidden { font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ok, #38d39f); }
+
+.planNote { font-size: 12px; line-height: 1.55; color: var(--muted); margin: 14px 0 0; }
+
+@media (max-width: 560px) {
+  .planRow { grid-template-columns: 1fr 1fr; }
+  .disclose { grid-template-columns: 1fr; }
 }

@@ -3,56 +3,80 @@ import type { Rng } from "./types";
 const ONE_TOKEN = 10n ** 18n;
 
 /**
+ * Smallest unit a split is allowed to land on: 1e12 = six decimal places.
+ *
+ * Quantising matters for more than tidiness. Amounts are shown to six decimals,
+ * so unquantised parts would display as truncated values that visibly fail to
+ * add up to the total — in a payroll tool, numbers that do not sum read as a
+ * bug and undermine the thing the user is being asked to trust.
+ */
+export const QUANTUM = 10n ** 12n;
+
+/**
  * Split `total` into `n` uneven, non-round amounts that sum to exactly `total`.
  *
- * Round figures are the strongest amount fingerprint a payout leaves, so every
- * part is nudged off a whole-token boundary. All arithmetic is bigint on the
- * token's smallest unit — the sum is exact, never approximate.
+ * Round figures are the strongest amount fingerprint a payout leaves, so no part
+ * is left on a whole-token boundary. All arithmetic is bigint on the token's
+ * smallest unit — the sum is exact, never approximate.
  */
-export function splitAmounts(total: bigint, n: number, rng: Rng): bigint[] {
+export function splitAmounts(total: bigint, n: number, rng: Rng, quantum = QUANTUM): bigint[] {
   if (n <= 0) throw new Error("splitAmounts: need at least one recipient");
-  if (total < BigInt(n)) {
+  if (total < BigInt(n) * quantum) {
     throw new Error("splitAmounts: total too small for that many recipients");
   }
+
+  // Work in whole quanta, then scale back, so every part lands on a displayable value.
+  const units = total / quantum;
+  const dust = total % quantum;
 
   // Integer weights keep the division exact; floats would lose precision at 1e18.
   const weights = Array.from({ length: n }, () => BigInt(Math.round((1 + rng()) * 1_000_000)));
   const weightSum = weights.reduce((a, b) => a + b, 0n);
 
-  const parts = weights.map((w) => (total * w) / weightSum);
+  const unitParts = weights.map((w) => (units * w) / weightSum);
   // Whatever integer division dropped goes to the last part, so the sum stays exact.
-  const assigned = parts.reduce((a, b) => a + b, 0n);
-  parts[n - 1] += total - assigned;
+  const assigned = unitParts.reduce((a, b) => a + b, 0n);
+  unitParts[n - 1] += units - assigned;
 
-  return deround(parts, rng);
+  if (unitParts.some((p) => p <= 0n)) {
+    throw new Error("splitAmounts: total too small for that many recipients");
+  }
+
+  const parts = unitParts.map((p) => p * quantum);
+  // Any sub-quantum dust rides along on the last part rather than being lost.
+  parts[n - 1] += dust;
+
+  return deround(parts, rng, quantum);
 }
 
 /**
  * Nudge whole-token amounts off their boundary, conserving the total.
  *
- * Every nudge is a matched pair: what one part loses another gains, so the sum
- * is invariant. A nudge is skipped rather than applied when it would drive a
- * part to zero or below.
+ * Every nudge is a matched pair — what one part loses another gains — so the sum
+ * is invariant, and each nudge is a whole number of quanta so parts stay exact
+ * at display precision.
  */
-function deround(parts: bigint[], rng: Rng): bigint[] {
+function deround(parts: bigint[], rng: Rng, quantum: bigint): bigint[] {
   const out = [...parts];
   const last = out.length - 1;
   if (out.length === 1) return out;
 
+  const nudge = () => (BigInt(Math.floor(rng() * 900)) + 1n) * quantum;
+
   for (let i = 0; i < last; i++) {
     if (out[i] % ONE_TOKEN !== 0n) continue;
-    const nudge = BigInt(Math.floor(rng() * 1e15)) + 1n;
-    if (out[i] - nudge <= 0n) continue;
-    out[i] -= nudge;
-    out[last] += nudge;
+    const delta = nudge();
+    if (out[i] - delta <= 0n) continue;
+    out[i] -= delta;
+    out[last] += delta;
   }
 
   // The last part absorbed every nudge above, so it is de-rounded separately.
   if (out[last] % ONE_TOKEN === 0n) {
-    const nudge = BigInt(Math.floor(rng() * 1e15)) + 1n;
-    if (out[last] - nudge > 0n) {
-      out[last] -= nudge;
-      out[0] += nudge;
+    const delta = nudge();
+    if (out[last] - delta > 0n) {
+      out[last] -= delta;
+      out[0] += delta;
     }
   }
   return out;
