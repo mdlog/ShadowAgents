@@ -202,9 +202,32 @@ pub mod PayrollEscrow {
                     [].span()
                 },
                 PayrollOperation::Claim => {
-                    // Implemented in Task 3.
-                    let _ = (secret, amount, note_id);
-                    [].span()
+                    assert(amount.is_non_zero(), errors::ZERO_AMOUNT);
+
+                    // Only the preimage matters; the hash is recomputed, never trusted.
+                    let h = compute_commitment_hash(secret, amount);
+                    let commit = self.commitments.read(h);
+                    assert(commit.batch_id.is_non_zero(), errors::COMMITMENT_NOT_FOUND);
+                    assert(!commit.claimed, errors::ALREADY_CLAIMED);
+
+                    let batch = self.batches.read(commit.batch_id);
+                    assert(batch.remaining >= amount, errors::INSUFFICIENT_BATCH);
+
+                    // The three coupled slots move together, always in this order.
+                    self.commitments.write(h, Commit { claimed: true, ..commit });
+                    self
+                        .batches
+                        .write(
+                            commit.batch_id, Batch { remaining: batch.remaining - amount, ..batch },
+                        );
+                    self.accounted.write(batch.token, self.accounted.read(batch.token) - amount);
+
+                    // Approve, never transfer — the pool pulls when it applies the deposit.
+                    IErc20Dispatcher { contract_address: batch.token }
+                        .approve(privacy_addr, amount.into());
+
+                    self.emit(Claimed { batch_id: commit.batch_id, token: batch.token, amount });
+                    [OpenNoteDeposit { note_id, token: batch.token, amount }].span()
                 },
             }
         }
