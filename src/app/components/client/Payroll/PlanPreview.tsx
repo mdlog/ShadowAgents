@@ -59,6 +59,7 @@ export default function PlanPreview({
           <ul>
             <li>The pool → escrow transfer, and the escrow&apos;s funded total</li>
             <li>Each claim&apos;s amount, once that recipient claims</li>
+            <li>That these claims belong to one payroll batch</li>
             <li>The timing of every transaction</li>
           </ul>
         </div>
