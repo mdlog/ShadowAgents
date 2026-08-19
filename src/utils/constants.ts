@@ -53,3 +53,16 @@ export const PRIVACY_POOL_MAINNET =
 
 // PayrollEscrow (DRAFT, unaudited). Set after deploy; "0x0" disables the payroll tab.
 export const PayrollEscrowAddress = process.env.NEXT_PUBLIC_PAYROLL_ESCROW ?? "0x0";
+
+/**
+ * The pool a freshly deployed PayrollEscrow gets pinned to.
+ *
+ * Mainnet only, deliberately. The escrow pins its pool in the constructor and
+ * asserts on it forever after, so pinning a wrong address would make the contract
+ * permanently undrivable and strand whatever it holds. Only the Mainnet pool has
+ * been verified live (get_fee_amount answered), so an unverified address is worse
+ * than refusing to deploy.
+ */
+export function privacyPoolForIndex(index: number): string | null {
+    return index === 0 ? PRIVACY_POOL_MAINNET : null;
+}

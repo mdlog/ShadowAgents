@@ -180,6 +180,8 @@ export default function WalletAccountV6Tag() {
   // Payroll: its own receipt slot plus the live pool fee.
   const [resultPayroll, setResultPayroll] = useState<ActionResult | null>(null);
   const [poolFee, setPoolFee] = useState<bigint | null>(null);
+  const [resultEscrowDeploy, setResultEscrowDeploy] = useState<ActionResult | null>(null);
+  const [deployingEscrow, setDeployingEscrow] = useState<boolean>(false);
   const [deploying, setDeploying] = useState<boolean>(false);
   // Active action tab (Umbra-style single-action interface).
   const [tab, setTab] = useState<TabKey>("shield");
@@ -331,6 +333,103 @@ export default function WalletAccountV6Tag() {
   const preparePayroll = async (actions: WALLET_API.STRK20_ACTION[]) => {
     if (!myWalletAccount) return { ok: false as const, error: "No WalletAccount available." };
     return dryRun(myWalletAccount, actions);
+  };
+
+  // Declare + deploy the PayrollEscrow through the user's own wallet, so no private
+  // key or keystore is ever involved. The class is declared only if it is not on
+  // chain already, which keeps a redeploy to a single prompt.
+  const handleDeployPayrollEscrow = async () => {
+    setResultEscrowDeploy(null);
+    if (!myWalletAccount) {
+      setResultEscrowDeploy(errorResult("No WalletAccount available."));
+      return;
+    }
+    const pool = constants.privacyPoolForIndex(myFrontendProviderIndex);
+    if (!pool) {
+      setResultEscrowDeploy(
+        errorResult(
+          "Deploy is wired for Mainnet only. The escrow pins its pool address at " +
+            "deploy time and asserts on it forever, so pinning an unverified pool " +
+            "would strand the contract and anything in it.",
+        ),
+      );
+      return;
+    }
+
+    setDeployingEscrow(true);
+    try {
+      const [sierra, casm] = await Promise.all([
+        fetch("/contracts/payroll_escrow.sierra.json").then((r) => r.json()),
+        fetch("/contracts/payroll_escrow.casm.json").then((r) => r.json()),
+      ]);
+      const provider = constants.myFrontendProviders[myFrontendProviderIndex];
+      const classHash = hash.computeContractClassHash(sierra);
+
+      let alreadyDeclared = false;
+      try {
+        await provider.getClassByHash(classHash);
+        alreadyDeclared = true;
+      } catch {
+        alreadyDeclared = false;
+      }
+
+      if (!alreadyDeclared) {
+        setResultEscrowDeploy({
+          status: "pending",
+          title: "Confirm the declare in your wallet…",
+          rows: [{ label: "Class hash", value: shortHex(classHash) }],
+        });
+        const declared = await myWalletAccount.declare({ contract: sierra, casm });
+        setResultEscrowDeploy({
+          status: "pending",
+          title: "Declaring PayrollEscrow…",
+          rows: [
+            { label: "Class hash", value: shortHex(classHash) },
+            {
+              label: "Transaction",
+              value: shortHex(declared.transaction_hash),
+              hash: declared.transaction_hash,
+            },
+          ],
+        });
+        await provider.waitForTransaction(declared.transaction_hash, {
+          retries: 200,
+          retryInterval: 3000,
+        });
+      }
+
+      setResultEscrowDeploy({
+        status: "pending",
+        title: "Confirm the deploy in your wallet…",
+        rows: [{ label: "Pinned pool", value: shortHex(pool) }],
+      });
+      const { transaction_hash, contract_address } = await myWalletAccount.deployContract({
+        classHash,
+        constructorCalldata: [pool],
+      });
+      const addr = validateAndParseAddress(contract_address);
+      await provider.waitForTransaction(transaction_hash, {
+        retries: 200,
+        retryInterval: 3000,
+      });
+      setResultEscrowDeploy({
+        status: "ok",
+        title: "PayrollEscrow deployed",
+        rows: [
+          { label: "Address", value: shortHex(addr) },
+          { label: "Class hash", value: shortHex(classHash) },
+          { label: "Pinned pool", value: shortHex(pool) },
+          { label: "Transaction", value: shortHex(transaction_hash), hash: transaction_hash },
+        ],
+        note:
+          "Add this to .env.local and restart the dev server:\n" +
+          `NEXT_PUBLIC_PAYROLL_ESCROW=${addr}`,
+      });
+    } catch (error: any) {
+      setResultEscrowDeploy(errorResult(error?.message ?? error?.toString?.() ?? String(error)));
+    } finally {
+      setDeployingEscrow(false);
+    }
   };
 
   const handleShield = async () => {
@@ -556,6 +655,9 @@ export default function WalletAccountV6Tag() {
           connectedAddress={connectedAddress}
           onDryRun={preparePayroll}
           onSubmit={submitPayroll}
+          onDeployEscrow={handleDeployPayrollEscrow}
+          deployingEscrow={deployingEscrow}
+          deployResult={resultEscrowDeploy ? <ResultCard r={resultEscrowDeploy} /> : null}
           result={resultPayroll ? <ResultCard r={resultPayroll} /> : null}
         />
       ) : (

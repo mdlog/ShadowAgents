@@ -28,6 +28,9 @@ type Props = {
     amountLabel: string,
   ) => Promise<string | undefined>;
   result: ReactNode;
+  onDeployEscrow: () => void;
+  deployingEscrow: boolean;
+  deployResult: ReactNode;
 };
 
 /**
@@ -68,6 +71,9 @@ function FundView({
   onDryRun,
   onSubmit,
   result,
+  onDeployEscrow,
+  deployingEscrow,
+  deployResult,
 }: Props) {
   const [names, setNames] = useState(DEFAULT_RECIPIENTS);
   const [totalText, setTotalText] = useState("30");
@@ -189,10 +195,21 @@ function FundView({
       {error && <div className={styles.warn}>{error}</div>}
 
       {!escrow && (
-        <div className={styles.warn}>
-          PayrollEscrow is not deployed yet — set NEXT_PUBLIC_PAYROLL_ESCROW to fund a
-          batch. You can still build and inspect a plan.
-        </div>
+        <>
+          <div className={styles.warn}>
+            PayrollEscrow is not deployed yet. Deploy it with your own wallet below — no
+            private key or keystore is involved. You can build and inspect a plan without
+            it. This contract is an unaudited draft: read cairo-payroll/AUDIT.md first.
+          </div>
+          <button
+            className={`${styles.btn} ${styles.btnGreen} ${styles.btnBlock}`}
+            disabled={!isConnected || deployingEscrow}
+            onClick={onDeployEscrow}
+          >
+            {deployingEscrow ? "Deploying…" : "Declare & deploy PayrollEscrow"}
+          </button>
+          {deployResult}
+        </>
       )}
 
       {plan && (
