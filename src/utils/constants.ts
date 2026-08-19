@@ -43,3 +43,13 @@ export function echoHelperForIndex(index: number): string {
 // Frontend provider indices where the STRK20 privacy pool is available, mapped to a
 // display name. Used to gate the WalletAccountV6 STRK20 actions.
 export const Strk20Networks: Record<number, string> = { 0: "MAINNET", 2: "SEPOLIA" };
+
+// ─── ShadowAgents: private payroll ──────────────────────────────────────────
+
+// STRK20 privacy pool (mainnet). Source of truth for the pool fee via get_fee_amount —
+// the fee is governance-set, so read it live rather than hardcoding it.
+export const PRIVACY_POOL_MAINNET =
+    "0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a";
+
+// PayrollEscrow (DRAFT, unaudited). Set after deploy; "0x0" disables the payroll tab.
+export const PayrollEscrowAddress = process.env.NEXT_PUBLIC_PAYROLL_ESCROW ?? "0x0";
