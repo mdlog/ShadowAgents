@@ -10,6 +10,7 @@ import { useFrontendProvider } from "../provider/providerContext";
 import { StrkCoin } from "../../TokenIcons";
 import SelectWallet from "./SelectWallet";
 import PayrollPanel from "../Payroll/PayrollPanel";
+import { dryRun, readPoolFee } from "@/lib/escrow/submit";
 
 // DEMO: all actions use one token (STRK). Swap constants.addrSTRK for your token,
 // or make the token a user selection.
@@ -176,6 +177,9 @@ export default function WalletAccountV6Tag() {
   const [verdictComplex, setVerdictComplex] = useState<Verdict | null>(null);
   // Echo-helper deploy (shown only on a supported network with no helper yet).
   const [resultDeploy, setResultDeploy] = useState<ActionResult | null>(null);
+  // Payroll: its own receipt slot plus the live pool fee.
+  const [resultPayroll, setResultPayroll] = useState<ActionResult | null>(null);
+  const [poolFee, setPoolFee] = useState<bigint | null>(null);
   const [deploying, setDeploying] = useState<boolean>(false);
   // Active action tab (Umbra-style single-action interface).
   const [tab, setTab] = useState<TabKey>("shield");
@@ -189,6 +193,27 @@ export default function WalletAccountV6Tag() {
   useEffect(() => {
     getWAchainId();
   }, [myFrontendProviderIndex, chain]);
+
+  // The pool fee is governance-set, so read it live rather than hardcoding it.
+  // This goes through the frontend provider, so it raises no wallet prompt.
+  useEffect(() => {
+    let cancelled = false;
+    const provider = constants.myFrontendProviders[myFrontendProviderIndex];
+    if (!isStrk20Network || !provider) {
+      setPoolFee(null);
+      return;
+    }
+    readPoolFee(provider)
+      .then((fee) => {
+        if (!cancelled) setPoolFee(fee);
+      })
+      .catch(() => {
+        if (!cancelled) setPoolFee(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [myFrontendProviderIndex, isStrk20Network]);
 
   // Submit STRK20 actions through the WalletAccountV6 instance, show the tx hash, then
   // wait for the receipt (privacy-pool txs verify a STARK proof on-chain - long budget).
@@ -297,6 +322,15 @@ export default function WalletAccountV6Tag() {
     } catch (error: any) {
       setResultBalances(errorResult(error?.message ?? error?.toString?.() ?? String(error)));
     }
+  };
+
+  // Payroll submits through the same receipt pipeline as every other action.
+  const submitPayroll = (actions: WALLET_API.STRK20_ACTION[], amountLabel: string) =>
+    submit(actions, setResultPayroll, amountLabel);
+
+  const preparePayroll = async (actions: WALLET_API.STRK20_ACTION[]) => {
+    if (!myWalletAccount) return { ok: false as const, error: "No WalletAccount available." };
+    return dryRun(myWalletAccount, actions);
   };
 
   const handleShield = async () => {
@@ -515,7 +549,15 @@ export default function WalletAccountV6Tag() {
       </div>
 
       {tab === "payroll" ? (
-        <PayrollPanel poolFee={null} shieldedBalance={null} />
+        <PayrollPanel
+          poolFee={poolFee}
+          shieldedBalance={null}
+          isConnected={isConnected}
+          connectedAddress={connectedAddress}
+          onDryRun={preparePayroll}
+          onSubmit={submitPayroll}
+          result={resultPayroll ? <ResultCard r={resultPayroll} /> : null}
+        />
       ) : (
       <>
       {/* Active-action input block */}
