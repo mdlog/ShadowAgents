@@ -28,6 +28,8 @@ type Props = {
     amountLabel: string,
   ) => Promise<string | undefined>;
   result: ReactNode;
+  onCheckBalance: () => void;
+  checkingBalance: boolean;
   onDeployEscrow: () => void;
   deployingEscrow: boolean;
   deployResult: ReactNode;
@@ -74,6 +76,8 @@ function FundView({
   onDeployEscrow,
   deployingEscrow,
   deployResult,
+  onCheckBalance,
+  checkingBalance,
 }: Props) {
   const [names, setNames] = useState(DEFAULT_RECIPIENTS);
   const [totalText, setTotalText] = useState("30");
@@ -189,6 +193,19 @@ function FundView({
 
         <button className={`${styles.btn} ${styles.btnBlock}`} onClick={buildPlan}>
           Build plan
+        </button>
+
+        <button
+          className={`${styles.btn} ${styles.btnBlock} ${styles.btnQuiet}`}
+          disabled={!isConnected || checkingBalance}
+          onClick={onCheckBalance}
+          title="Reads your shielded balance. Your wallet will ask for consent."
+        >
+          {checkingBalance
+            ? "Checking…"
+            : shieldedBalance === null
+              ? "Check shielded balance (asks your wallet)"
+              : `Shielded: ${fmtStrk(shieldedBalance)} STRK`}
         </button>
       </div>
 

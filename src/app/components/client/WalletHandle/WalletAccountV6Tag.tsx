@@ -182,6 +182,8 @@ export default function WalletAccountV6Tag() {
   const [poolFee, setPoolFee] = useState<bigint | null>(null);
   const [resultEscrowDeploy, setResultEscrowDeploy] = useState<ActionResult | null>(null);
   const [deployingEscrow, setDeployingEscrow] = useState<boolean>(false);
+  const [shieldedStrk, setShieldedStrk] = useState<bigint | null>(null);
+  const [checkingBalance, setCheckingBalance] = useState<boolean>(false);
   const [deploying, setDeploying] = useState<boolean>(false);
   // Active action tab (Umbra-style single-action interface).
   const [tab, setTab] = useState<TabKey>("shield");
@@ -432,6 +434,36 @@ export default function WalletAccountV6Tag() {
     }
   };
 
+  // Shielded STRK for the payroll cost check. Deliberately behind a button: reading
+  // balances raises a wallet consent prompt for data the app has no standing reason
+  // to see, so it must never fire on render.
+  const handleCheckShieldedStrk = async () => {
+    if (!myWalletAccount) return;
+    setCheckingBalance(true);
+    try {
+      const raw: any = await myWalletAccount.strk20Balances([TOKEN]);
+      const entries: any[] = raw?.value ?? raw ?? [];
+      const wanted = num.toBigInt(TOKEN);
+      const hit = (Array.isArray(entries) ? entries : []).find((b: any) => {
+        const t = b?.token ?? b?.token_address ?? b?.[0];
+        try {
+          // Padded and unpadded hex name the same token, so compare as numbers.
+          return t !== undefined && num.toBigInt(t) === wanted;
+        } catch {
+          return false;
+        }
+      });
+      const amount = hit?.balance ?? hit?.amount ?? hit?.[1];
+      setShieldedStrk(amount === undefined ? 0n : num.toBigInt(amount));
+    } catch {
+      // A refused consent prompt is not an error worth blocking on; the cost line
+      // simply stays unknown.
+      setShieldedStrk(null);
+    } finally {
+      setCheckingBalance(false);
+    }
+  };
+
   const handleShield = async () => {
     setResultShield(null);
     const actions: WALLET_API.STRK20_ACTION[] = [
@@ -650,7 +682,9 @@ export default function WalletAccountV6Tag() {
       {tab === "payroll" ? (
         <PayrollPanel
           poolFee={poolFee}
-          shieldedBalance={null}
+          shieldedBalance={shieldedStrk}
+          onCheckBalance={handleCheckShieldedStrk}
+          checkingBalance={checkingBalance}
           isConnected={isConnected}
           connectedAddress={connectedAddress}
           onDryRun={preparePayroll}

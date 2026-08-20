@@ -527,3 +527,12 @@
   .planRow { grid-template-columns: 1fr 1fr; }
   .disclose { grid-template-columns: 1fr; }
 }
+
+.btnQuiet {
+  background: transparent;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  font-weight: 500;
+  margin-top: 8px;
+}
+.btnQuiet:disabled { opacity: 0.5; }
